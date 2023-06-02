@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_images:
+  create_debian_package:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -25,4 +25,27 @@ jobs:
       uses: actions/upload-artifact@v3
       with:
         name: pinenote-gnome-extension.deb
-        path: pinenote-gnome-extension*.deb
+        path: |
+          pinenote-gnome-extension_*_all.deb
+          pinenote-gnome-extension_*_amd64.buildinfo
+          pinenote-gnome-extension_*_amd64.changes
+          pinenote-gnome-extension_*.dsc
+          pinenote-gnome-extension_*.tar.xz
+
+    do_release:
+    runs-on: ubuntu-latest
+    needs:
+      - create_debian_package
+    steps:
+      - name: Clone workflow repository
+        uses: actions/checkout@v3
+      - name: Download image artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts/
+      - name: Make release
+        uses: softprops/action-gh-release@v0.1.15
+        with:
+          draft: true
+          files: |
+            artifacts/pinenote-gnome-extension*

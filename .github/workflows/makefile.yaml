@@ -1,0 +1,27 @@
+name: Build Debian package for the pinenote-gnome-extension
+
+on:
+  # manual triggering only
+  workflow_dispatch:
+
+jobs:
+  build_images:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+      path: repo/
+
+    - name: Install dependencies
+      run: sudo apt -y update && sudo apt install build-essential  dpkg-dev
+
+    - name: Build package
+      run: cd repo && dpkg-buildpackage -us -uc
+
+    - name: ls
+      run: ls
+
+    - name: Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: pinenote-gnome-extension.deb
+        path: pinenote-gnome-extension*.deb

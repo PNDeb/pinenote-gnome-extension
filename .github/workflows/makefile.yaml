@@ -24,7 +24,7 @@ jobs:
     - name: Artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: pinenote-gnome-extension.deb
+        name: pinenote-gnome-extension
         path: |
           pinenote-gnome-extension_*_all.deb
           pinenote-gnome-extension_*_amd64.buildinfo
@@ -48,4 +48,4 @@ jobs:
         with:
           draft: true
           files: |
-            artifacts/pinenote-gnome-extension*
+            artifacts/pinenote-gnome-extension/pinenote-gnome-extension*

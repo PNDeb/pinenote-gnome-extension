@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.pnhelper" path="/org/gnome/shell/extensions/pnhelper@m-weigand.github.com/">
+    <key name="auto-refresh" type="b">
+      <default>true</default>
+      <summary>Auto Refresh</summary>
+      <description>Whether the screen should be automatically refreshed regularly</description>
+    </key>
+    <key name="bw-mode" type="u">
+      <default>0</default>
+      <summary>BW Mode</summary>
+      <description>
+        Selects the mode driving the display. Possible values are:
+        0 = Grayscale mode
+        1 = BW+Dither mode
+        2 = Black &amp; White mode
+        3 = DU4 waveform mode
+      </description>
+    </key>
+    <key name="bw-dither-invert" type="b">
+      <default>false</default>
+      <summary>Invert BW Dithering</summary>
+      <description>Whether the screen should be inverted in Black and White Dithering mode</description>
+    </key>
+    <key name="no-off-screen" type="b">
+      <default>false</default>
+      <summary>No Off Screen</summary>
+      <description>Whether the current screen contents should be kept when entering suspend</description>
+    </key>
+    <key name="travel-mode" type="b">
+      <default>false</default>
+      <summary>Travel Mode</summary>
+      <description>Whether to suppress waking up the device when the cover is opened, so it doesn't drain the battery from shifting around in your bag</description>
+    </key>
+  </schema>
+</schemalist>

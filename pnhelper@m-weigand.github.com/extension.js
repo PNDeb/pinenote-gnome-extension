@@ -457,6 +457,7 @@ export default class PnHelperExtension extends Extension {
         // todo: look into .bind to access the label
         log("Signal received: WaveformChanged");
         this.update_panel_label();
+        this.update_popup_bw_mode();
     }
 
     update_panel_label() {
@@ -506,49 +507,22 @@ export default class PnHelperExtension extends Extension {
         //  '/sys/module/rockchip_ebc/parameters/bw_mode',
         //  new_mode
         // );
+        log(`Changing bw_mode = ${new_mode}`);
         ebc.PnProxy.SetBwModeSync(new_mode);
 
         if (new_mode == 0){
-            // grayscale mode
-            this.bw_but_grayscale.visible = true;
-            this.bw_but_bw_dither.visible = true;
-            this.bw_but_bw.visible = true;
-            this.bw_but_du4 = true;
-            this.m_bw_slider.visible = false;
-            this.mitem_bw_dither_invert.visible = false;
             // use GC16 waveform
             // this._set_waveform(4);
             ebc.PnProxy.SetDefaultWaveformSync(4);
         } else if (new_mode == 1){
-            // bw+dither mode
-            this.bw_but_grayscale.visible = true;
-            this.bw_but_bw_dither.visible = true;
-            this.bw_but_bw.visible = true;
-            this.bw_but_du4 = true;
-            this.m_bw_slider.visible = false;
-            this.mitem_bw_dither_invert.visible = true;
             // use A2 waveform
             ebc.PnProxy.SetDefaultWaveformSync(1);
             // this._set_waveform(1);
         } else if (new_mode == 2){
-            // Black & White mode
-            this.bw_but_grayscale.visible = true;
-            this.bw_but_bw_dither.visible = true;
-            this.bw_but_bw.visible = true;
-            this.bw_but_du4 = true;
-            this.m_bw_slider.visible = true;
-            this.mitem_bw_dither_invert.visible = true;
             // use A2 waveform
             // this._set_waveform(1);
             ebc.PnProxy.SetDefaultWaveformSync(1);
         } else if (new_mode == 3){
-            // DU4 mode
-            this.bw_but_grayscale.visible = true;
-            this.bw_but_bw_dither.visible = true;
-            this.bw_but_bw.visible = true;
-            this.bw_but_du4 = true;
-            this.m_bw_slider.visible = false;
-            this.mitem_bw_dither_invert.visible = true;
             // use DU4 waveform
             ebc.PnProxy.SetDefaultWaveformSync(3);
         }
@@ -558,6 +532,35 @@ export default class PnHelperExtension extends Extension {
             ebc.ebc_trigger_global_refresh,
             500
         );
+    }
+
+    update_popup_bw_mode(){
+        const bw_mode = ebc.PnProxy.GetBwModeSync();
+
+        if (bw_mode == 0){
+            // grayscale mode
+            this.m_bw_slider.visible = false;
+            this.mitem_bw_dither_invert.visible = false;
+        } else if (bw_mode == 1){
+            // bw+dither mode
+            this.m_bw_slider.visible = false;
+            this.mitem_bw_dither_invert.visible = true;
+            // this._set_waveform(1);
+        } else if (bw_mode == 2){
+            // Black & White mode
+            this.m_bw_slider.visible = true;
+            this.mitem_bw_dither_invert.visible = true;
+        } else if (bw_mode == 3){
+            // DU4 mode
+            this.m_bw_slider.visible = false;
+            this.mitem_bw_dither_invert.visible = true;
+        }
+
+        // set the ornament for all buttons
+        this.bw_but_grayscale.setOrnament(bw_mode == 0 ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+        this.bw_but_bw_dither.setOrnament(bw_mode == 1 ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+        this.bw_but_bw       .setOrnament(bw_mode == 2 ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+        this.bw_but_du4      .setOrnament(bw_mode == 3 ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
     }
 
     _add_bw_buttons() {
@@ -703,7 +706,7 @@ export default class PnHelperExtension extends Extension {
     }
 
     _add_auto_refresh_button(){
-        this.mitem_auto_refresh = new PopupMenu.PopupMenuItem(_('Disable Autorefresh'));
+        this.mitem_auto_refresh = new PopupMenu.PopupMenuItem(_('Auto Refresh Enabled'));
         let auto_refresh = ebc.PnProxy.GetAutoRefreshSync()[0];
 
         this.mitem_auto_refresh.connect('activate', () => {
@@ -739,7 +742,7 @@ export default class PnHelperExtension extends Extension {
 
     update_auto_refresh_button(){
         let auto_refresh = ebc.PnProxy.GetAutoRefreshSync()[0];
-        this.mitem_auto_refresh.label.set_text(`Auto Refresh ${auto_refresh ? 'Enabled' : 'Disabled'}`);
+        this.mitem_auto_refresh.label.set_text(_(`Auto Refresh ${auto_refresh ? 'Enabled' : 'Disabled'}`));
     }
 
     _add_dither_invert_button(){
@@ -779,13 +782,13 @@ export default class PnHelperExtension extends Extension {
 
     update_bw_dither_invert_button() {
         let bw_dither_invert = ebc.PnProxy.GetBwDitherInvertSync()[0];
-        this.mitem_bw_dither_invert.label.set_text(`BW Invert ${bw_dither_invert ? 'On' : 'Off'}`);
+        this.mitem_bw_dither_invert.label.set_text(_(`BW Invert ${bw_dither_invert ? 'On' : 'Off'}`));
     }
 
     _add_refresh_button(){
         this._trigger_refresh_button = new TriggerRefreshButton();
         Main.panel.addToStatusArea(
-            "PN Trigger Global Refresh",
+            _("PN Trigger Global Refresh"),
             this._trigger_refresh_button,
             -1,
             'center'
@@ -795,7 +798,7 @@ export default class PnHelperExtension extends Extension {
     _add_performance_mode_button(){
         this._performance_mode_button = new PerformanceModeButton(this.metadata, this._settings);
         Main.panel.addToStatusArea(
-            "PN Switch Performance Modes",
+            _("PN Switch Performance Modes"),
             this._performance_mode_button,
             -1,
             'center'
@@ -881,7 +884,7 @@ export default class PnHelperExtension extends Extension {
 
     update_no_off_screen_button() {
         let no_off_screen = ebc.PnProxy.GetNoOffScreenSync()[0];
-        this.mitem_no_off_screen.label.set_text(`${no_off_screen ? 'Clear' : 'Keep'} screen on Suspend`);
+        this.mitem_no_off_screen.label.set_text(_(`${no_off_screen ? 'Clear' : 'Keep'} screen on Suspend`));
     }
 
     enable() {
@@ -897,7 +900,7 @@ export default class PnHelperExtension extends Extension {
         this._topBox = new St.BoxLayout({ });
 
         // Button 1
-        let indicatorName = `${this.metadata.name} Indicator`;
+        let indicatorName = _(`${this.metadata.name} Indicator`);
 
         // Create a panel button
         this._indicator = new PanelMenu.Button(0.0, indicatorName, false);
@@ -987,6 +990,7 @@ export default class PnHelperExtension extends Extension {
 
         // this._btpen = new btpen.Indicator_ng();
         this.update_panel_label();
+        this.update_popup_bw_mode();
     }
 
     _get_content(sysfs_file){

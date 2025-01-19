@@ -213,41 +213,8 @@ var PerformanceModeButton = GObject.registerClass(
         this.metadata = metadata;
         this._settings = settings;
 
-        const dclk_select = ebc.PnProxy.GetDclkSelectSync();
-
-        let label_text = 'N'
-        let new_mode = ''
-        // set mode (i.e., refresh rate) according to the dclk_select
-            // value
-        if (dclk_select == 0){
-            console.log("Quality mode");
-            console.log("Switching to 5 Hz refresh rate");
-            new_mode = '1872x1404@5.000';
-            label_text = 'Q'
-        } else if (dclk_select == 1) {
-            label_text = 'P'
-            console.log("Performance mode");
-            console.log("Switching to 80 Hz refresh rate");
-            new_mode = '1872x1404@80.000';
-        }
-
-        // disable trying to fix the mode on initialization
-        // this only throws an exception
-        /*
-        try {
-            GLib.spawn_async(
-                Me.path,
-                ['gjs', `${Me.path}/mode_switcher.js`, `${new_mode}`],
-                null,
-                GLib.SpawnFlags.SEARCH_PATH,
-                null);
-        } catch (err) {
-            logError(err);
-        }
-        */
-
         this.panel_label = new St.Label({
-            text: label_text,
+            text: "N",
             y_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -257,10 +224,41 @@ var PerformanceModeButton = GObject.registerClass(
         this.connect('button-press-event', this._trigger_btn.bind(this));
         this.connect('touch-event', this._trigger_touch.bind(this));
 
+        this.dbus_proxy = ebc.ebc_subscribe_to_requestedqualityorperformancemode(
+            this.update_label.bind(this),
+            this.panel_label
+        );
+
         this.update_label()
+
+        this._settings.connect('changed::quality-mode', (settings, key) => {
+            this._apply_quality_mode(this._settings.get_boolean(key));
+        });
+
+        const quality_mode = this._settings.get_boolean('quality-mode');
+        const dclk_select = ebc.PnProxy.GetDclkSelectSync();
+        if (quality_mode != (dclk_select == 0)){
+            this._apply_quality_mode(quality_mode);
+        }
     }
 
-    switch_mode() {
+    toggle_mode() {
+        const dclk_select = ebc.PnProxy.GetDclkSelectSync();
+        let quality_mode = dclk_select == 0;
+        const force = quality_mode != this._settings.get_boolean('quality-mode');
+
+        quality_mode = !quality_mode;
+
+        this._settings.set_boolean('quality-mode', quality_mode);
+        if (force) {
+            log(`quality_mode was out of sync with settings`);
+            this._apply_quality_mode(quality_mode);
+        }
+
+        this._settings.set_boolean('quality-mode', quality_mode);
+    }
+
+    _apply_quality_mode(quality_mode) {
         log('MODE SWITCH');
         const dclk_select = ebc.PnProxy.GetDclkSelectSync();
         let new_mode = ''
@@ -278,9 +276,10 @@ var PerformanceModeButton = GObject.registerClass(
             ebc.PnProxy.SetDclkSelectSync(0);
         } else
             return;
-        this.update_label()
         log("new mode:");
         log(new_mode);
+        // noop in the driver currently, but maybe there are listeners for the associated signal
+        ebc.PnProxy.RequestQualityOrPerformanceModeSync(quality_mode ? 1 : 0);
 
         const no_off_screen = this._settings.get_boolean('no-off-screen');
         ebc.PnProxy.SetNoOffScreenSync(no_off_screen);
@@ -307,20 +306,19 @@ var PerformanceModeButton = GObject.registerClass(
     }
 
     update_label() {
-        const dclk_select = ebc.PnProxy.GetDclkSelectSync()[0];
-        this.panel_label.set_text(dclk_select == 1 ? 'P' : 'Q');
+        const dclk_select = ebc.PnProxy.GetDclkSelectSync();
+        const quality_mode = dclk_select == 0;
+        this.panel_label.set_text(quality_mode ? 'Q' : 'P');
     }
 
     _trigger_touch(widget, event) {
         if (event.type() !== Clutter.EventType.TOUCH_BEGIN){
-            this.switch_mode();
-            // ebc.ebc_trigger_global_refresh();
+            this.toggle_mode();
         }
     }
 
     _trigger_btn(widget, event) {
-        // ebc.ebc_trigger_global_refresh();
-        this.switch_mode();
+        this.toggle_mode();
     }
 });
 

@@ -17,6 +17,15 @@
         3 = DU4 waveform mode
       </description>
     </key>
+    <key name="quality-mode" type="b">
+      <default>true</default>
+      <summary>Quality Mode</summary>
+      <description>
+        Reduce visible artifacts as much as possible, with the downside of having bad latency.
+        This mode is intended for high-quality, low-speed, task such as reading or slow web browsing.
+        It is not intended for writing.
+      </description>
+    </key>
     <key name="bw-dither-invert" type="b">
       <default>false</default>
       <summary>Invert BW Dithering</summary>

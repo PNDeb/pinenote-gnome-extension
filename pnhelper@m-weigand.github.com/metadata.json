@@ -4,5 +4,6 @@
     "description": "Provides easy access to some PineNote-related functionality",
     "version": 1.7,
     "shell-version": ["46", "47" ],
-    "url": "https://github.com/PNDeb/pinenote-gnome-extension"
+    "url": "https://github.com/PNDeb/pinenote-gnome-extension",
+    "settings-schema": "org.gnome.shell.extensions.pnhelper"
 }

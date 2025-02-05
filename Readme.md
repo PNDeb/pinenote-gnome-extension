@@ -50,6 +50,7 @@ The extended quick settings of GNOME:
 	mkdir build
 	git clone https://github.com/PNDeb/pinenote-gnome-extension.git
 	cd pinenote-gnome-extension
+	glib-compile-schemas pnhelper@m-weigand.github.com/schemas
 	dpkg-buildpackage -us -uc
 
 ## Testing under wayland

@@ -894,6 +894,15 @@ export default class PnHelperExtension extends Extension {
         this._add_warm_indicator_to_main_gnome_menu();
         this._add_travel_mode_toggle();
 
+		// sometimes (on first boot), we do not want the overview to be shown.
+		// We want to directly go to the auto-started applications
+		const home = GLib.getenv("HOME");
+		const file = Gio.file_new_for_path(home + "/.config/pinenote/do_not_show_overview");
+		if (file.query_exists(null)){
+			log("disabling overview");
+			Main.sessionMode.hasOverview = false;
+		}
+
         // ////////////////////////////////////////////////////////////////////
         this._topBox = new St.BoxLayout({ });
 

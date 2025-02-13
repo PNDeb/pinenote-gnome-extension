@@ -100,7 +100,7 @@ export function ebc_subscribe_to_waveformchanged(func, widget){
 
 // the pinenote-dbus-service can emit a signal which indicates that a
 // performance-mode-change was requested
-export function ebc_subscribe_to_requestperformancemode(func, widget){
+export function ebc_subscribe_to_requestedqualityorperformancemode(func, widget){
     function func_signal (connection, sender, path, iface, signal, params){
         func(connection, sender, path, iface, signal, params, widget);
     }

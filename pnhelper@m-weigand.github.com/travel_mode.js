@@ -62,7 +62,7 @@ export function misc_unsubscribe(dbus_handler){
 
 const TravelModeToggle = GObject.registerClass(
 class TravelModeToggle extends QuickSettings.QuickToggle {
-    _init(extensionObject) {
+    _init(settings, extensionObject) {
         super._init({
             title: _('Travel Mode'),
             subtitle: _('Cover wakup enable/disable'),
@@ -74,6 +74,12 @@ class TravelModeToggle extends QuickSettings.QuickToggle {
             this.on_mode_change,
             this // "obj" parameter
         );
+
+        this._settings = settings;
+
+        this._settings.connect('changed::travel-mode', (settings, key) => {
+            this._apply_travel_mode(this._settings.get_boolean(key));
+        });
 
         this.connectObject(
             'destroy', () => this._on_destroy(),
@@ -97,24 +103,39 @@ class TravelModeToggle extends QuickSettings.QuickToggle {
     }
 
     _toggleMode(){
-        log("TravelModel: Toggle");
         let state = misc_get_travel_mode();
-        this.set(!state);
-        if (state){
-            misc_disable_travel_mode();
-        } else {
-            misc_enable_travel_mode();
+        const force = state != this._settings.get_boolean('travel-mode');
+
+        state = !state;
+        log(`TravelModel: Toggle ${state ? "On" : "Off"}`);
+
+        this._settings.set_boolean('travel-mode', state);
+        if (force) {
+            log(`travel_mode was out of sync with settings`);
+            this._apply_travel_mode(state);
         }
-        this._sync();
+
+        this._settings.set_boolean('travel-mode', state);
     }
+
+    _apply_travel_mode(value){
+        //this.set(value);
+        if (value){
+            misc_enable_travel_mode();
+        } else {
+            misc_disable_travel_mode();
+        }
+    }
+
 });
 
 
 export const Indicator = GObject.registerClass(
 class Indicator extends QuickSettings.SystemIndicator {
-    _init() {
+    _init(settings) {
         super._init();
-        this._toggle = new TravelModeToggle();
+        this._toggle = new TravelModeToggle(settings);
         this.quickSettingsItems.push(this._toggle);
     }
+
 });

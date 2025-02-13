@@ -206,47 +206,15 @@ var TriggerRefreshButton = GObject.registerClass(
  * */
 var PerformanceModeButton = GObject.registerClass(
     class PerformanceModeButton extends PanelMenu.Button {
-    _init(metadata) {
+    _init(metadata, settings) {
         super._init();
         this.set_track_hover(true);
         this.set_reactive(true);
         this.metadata = metadata;
-
-        const dclk_select = ebc.PnProxy.GetDclkSelectSync();
-
-        let label_text = 'N'
-        let new_mode = ''
-        // set mode (i.e., refresh rate) according to the dclk_select
-            // value
-        if (dclk_select == 0){
-            console.log("Quality mode");
-            console.log("Switching to 5 Hz refresh rate");
-            new_mode = '1872x1404@5.000';
-            label_text = 'Q'
-        } else if (dclk_select == 1) {
-            label_text = 'P'
-            console.log("Performance mode");
-            console.log("Switching to 80 Hz refresh rate");
-            new_mode = '1872x1404@80.000';
-        }
-
-        // disable trying to fix the mode on initialization
-        // this only throws an exception
-        /*
-        try {
-            GLib.spawn_async(
-                Me.path,
-                ['gjs', `${Me.path}/mode_switcher.js`, `${new_mode}`],
-                null,
-                GLib.SpawnFlags.SEARCH_PATH,
-                null);
-        } catch (err) {
-            logError(err);
-        }
-        */
+        this._settings = settings;
 
         this.panel_label = new St.Label({
-            text: label_text,
+            text: "N",
             y_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });
@@ -255,9 +223,41 @@ var PerformanceModeButton = GObject.registerClass(
 
         this.connect('button-press-event', this._trigger_btn.bind(this));
         this.connect('touch-event', this._trigger_touch.bind(this));
+
+        this.dbus_proxy = ebc.ebc_subscribe_to_requestedqualityorperformancemode(
+            this.update_label.bind(this),
+            this.panel_label
+        );
+
+        this.update_label()
+
+        this._settings.connect('changed::quality-mode', (settings, key) => {
+            this._apply_quality_mode(this._settings.get_boolean(key));
+        });
+
+        const quality_mode = this._settings.get_boolean('quality-mode');
+        const dclk_select = ebc.PnProxy.GetDclkSelectSync();
+        if (quality_mode != (dclk_select == 0)){
+            this._apply_quality_mode(quality_mode);
+        }
     }
 
-    switch_mode() {
+    toggle_mode() {
+        const dclk_select = ebc.PnProxy.GetDclkSelectSync();
+        let quality_mode = dclk_select == 0;
+        const force = quality_mode != this._settings.get_boolean('quality-mode');
+
+        quality_mode = !quality_mode;
+
+        if (force) {
+            log(`quality_mode was out of sync with settings`);
+            this._apply_quality_mode(quality_mode);
+        }
+
+        this._settings.set_boolean('quality-mode', quality_mode);
+    }
+
+    _apply_quality_mode(quality_mode) {
         log('MODE SWITCH');
         const dclk_select = ebc.PnProxy.GetDclkSelectSync();
         let new_mode = ''
@@ -267,20 +267,23 @@ var PerformanceModeButton = GObject.registerClass(
             log('switching to performance mode');
             new_mode = '1872x1404@80.000';
             ebc.PnProxy.SetDclkSelectSync(1);
-            this.panel_label.set_text('P');
         }
         else if (dclk_select == 1){
             log('switching to quality mode');
             // new_mode = '1872x1404@1.000';
             new_mode = '1872x1404@5.000';
             ebc.PnProxy.SetDclkSelectSync(0);
-            this.panel_label.set_text('Q');
         } else
             return;
         log("new mode:");
         log(new_mode);
+        // noop in the driver currently, but maybe there are listeners for the associated signal
+        ebc.PnProxy.RequestQualityOrPerformanceModeSync(quality_mode ? 1 : 0);
 
-        ebc.PnProxy.SetNoOffScreenSync(true);
+		// store the current value here
+        const no_off_screen = this._settings.get_boolean('no-off-screen');
+		// while switching modes, we do not want the offscreen to be shown
+        ebc.PnProxy.SetNoOffScreenSync(1);
 
         try {
             GLib.spawn_async(
@@ -296,6 +299,8 @@ var PerformanceModeButton = GObject.registerClass(
         const removeId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
             log('This callback will be invoked once after 1 seconds');
             ebc.ebc_trigger_global_refresh();
+			// we need to restore the nooffscreen-settings after the mode set
+			ebc.PnProxy.SetNoOffScreenSync(no_off_screen);
 
             // GLib.Source.remove(timeoutId);
 
@@ -303,16 +308,20 @@ var PerformanceModeButton = GObject.registerClass(
         });
     }
 
+    update_label() {
+        const dclk_select = ebc.PnProxy.GetDclkSelectSync();
+        const quality_mode = dclk_select == 0;
+        this.panel_label.set_text(quality_mode ? 'Q' : 'P');
+    }
+
     _trigger_touch(widget, event) {
         if (event.type() !== Clutter.EventType.TOUCH_BEGIN){
-            this.switch_mode();
-            // ebc.ebc_trigger_global_refresh();
+            this.toggle_mode();
         }
     }
 
     _trigger_btn(widget, event) {
-        // ebc.ebc_trigger_global_refresh();
-        this.switch_mode();
+        this.toggle_mode();
     }
 });
 
@@ -442,11 +451,17 @@ export default class PnHelperExtension extends Extension {
         super(metadata);
         this._indicator = null;
         this._indicator2 = null;
+        this._settings = null;
     }
 
     onWaveformChanged(connection, sender, path, iface, signal, params, widget) {
         // todo: look into .bind to access the label
         log("Signal received: WaveformChanged");
+        this.update_panel_label();
+        this.update_popup_bw_mode();
+    }
+
+    update_panel_label() {
         const waveform = ebc.PnProxy.GetDefaultWaveformSync();
         const bw_mode = ebc.PnProxy.GetBwModeSync();
         var new_label = '';
@@ -461,7 +476,7 @@ export default class PnHelperExtension extends Extension {
         }
 
         new_label += waveform.toString();
-        widget.set_text(new_label);
+        this.panel_label.set_text(new_label);
     }
 
     _write_to_sysfs_file(filename, value){
@@ -493,49 +508,22 @@ export default class PnHelperExtension extends Extension {
         //  '/sys/module/rockchip_ebc/parameters/bw_mode',
         //  new_mode
         // );
+        log(`Changing bw_mode = ${new_mode}`);
         ebc.PnProxy.SetBwModeSync(new_mode);
 
         if (new_mode == 0){
-            // grayscale mode
-            this.bw_but_grayscale.visible = true;
-            this.bw_but_bw_dither.visible = true;
-            this.bw_but_bw.visible = true;
-            this.bw_but_du4 = true;
-            this.m_bw_slider.visible = false;
-            this.mitem_bw_dither_invert.visible = false;
             // use GC16 waveform
             // this._set_waveform(4);
             ebc.PnProxy.SetDefaultWaveformSync(4);
         } else if (new_mode == 1){
-            // bw+dither mode
-            this.bw_but_grayscale.visible = true;
-            this.bw_but_bw_dither.visible = true;
-            this.bw_but_bw.visible = true;
-            this.bw_but_du4 = true;
-            this.m_bw_slider.visible = false;
-            this.mitem_bw_dither_invert.visible = true;
             // use A2 waveform
             ebc.PnProxy.SetDefaultWaveformSync(1);
             // this._set_waveform(1);
         } else if (new_mode == 2){
-            // Black & White mode
-            this.bw_but_grayscale.visible = true;
-            this.bw_but_bw_dither.visible = true;
-            this.bw_but_bw.visible = true;
-            this.bw_but_du4 = true;
-            this.m_bw_slider.visible = true;
-            this.mitem_bw_dither_invert.visible = true;
             // use A2 waveform
             // this._set_waveform(1);
             ebc.PnProxy.SetDefaultWaveformSync(1);
         } else if (new_mode == 3){
-            // DU4 mode
-            this.bw_but_grayscale.visible = true;
-            this.bw_but_bw_dither.visible = true;
-            this.bw_but_bw.visible = true;
-            this.bw_but_du4 = true;
-            this.m_bw_slider.visible = false;
-            this.mitem_bw_dither_invert.visible = true;
             // use DU4 waveform
             ebc.PnProxy.SetDefaultWaveformSync(3);
         }
@@ -547,27 +535,56 @@ export default class PnHelperExtension extends Extension {
         );
     }
 
+    update_popup_bw_mode(){
+        const bw_mode = ebc.PnProxy.GetBwModeSync();
+
+        if (bw_mode == 0){
+            // grayscale mode
+            this.m_bw_slider.visible = false;
+            this.mitem_bw_dither_invert.visible = false;
+        } else if (bw_mode == 1){
+            // bw+dither mode
+            this.m_bw_slider.visible = false;
+            this.mitem_bw_dither_invert.visible = true;
+            // this._set_waveform(1);
+        } else if (bw_mode == 2){
+            // Black & White mode
+            this.m_bw_slider.visible = true;
+            this.mitem_bw_dither_invert.visible = true;
+        } else if (bw_mode == 3){
+            // DU4 mode
+            this.m_bw_slider.visible = false;
+            this.mitem_bw_dither_invert.visible = true;
+        }
+
+        // set the ornament for all buttons
+        this.bw_but_grayscale.setOrnament(bw_mode == 0 ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+        this.bw_but_bw_dither.setOrnament(bw_mode == 1 ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+        this.bw_but_bw       .setOrnament(bw_mode == 2 ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+        this.bw_but_du4      .setOrnament(bw_mode == 3 ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+    }
+
     _add_bw_buttons() {
         // add three buttons for grayscale, bw, bw+dithering modes
 
         // 1
         this.bw_but_grayscale = new PopupMenu.PopupMenuItem(_('Grayscale Mode'));
         this.bw_but_grayscale.connect('activate', () => {
-            this._change_bw_mode(0);
+            this._settings.set_uint("bw-mode", 0);
         });
         this._indicator.menu.addMenuItem(this.bw_but_grayscale);
 
         // 2
         this.bw_but_bw_dither = new PopupMenu.PopupMenuItem(_('BW+Dither Mode'));
         this.bw_but_bw_dither.connect('activate', () => {
-            this._change_bw_mode(1);
+            this._settings.set_uint("bw-mode", 1);
         });
         this._indicator.menu.addMenuItem(this.bw_but_bw_dither);
 
         // 3
         this.bw_but_bw = new PopupMenu.PopupMenuItem(_('BW Mode'));
         this.bw_but_bw.connect('activate', () => {
-            this._change_bw_mode(2);
+            this._settings.set_uint("bw-mode", 2);
         });
         this._indicator.menu.addMenuItem(this.bw_but_bw);
 
@@ -576,7 +593,7 @@ export default class PnHelperExtension extends Extension {
         // 4
         this.bw_but_du4 = new PopupMenu.PopupMenuItem(_('DU4 Mode'));
         this.bw_but_du4.connect('activate', () => {
-            this._change_bw_mode(3);
+            this._settings.set_uint("bw-mode", 3);
         });
         this._indicator.menu.addMenuItem(this.bw_but_du4);
     }
@@ -690,76 +707,106 @@ export default class PnHelperExtension extends Extension {
     }
 
     _add_auto_refresh_button(){
-        this.mitem_auto_refresh = new PopupMenu.PopupMenuItem(_('Disable Autorefresh'));
+        this.mitem_auto_refresh = new PopupMenu.PopupMenuItem(_('Auto Refresh Enabled'));
         let auto_refresh = ebc.PnProxy.GetAutoRefreshSync()[0];
 
-        log(`add: auto refresh state: ${auto_refresh}`);
-
-        this.mitem_auto_refresh.label.set_text(`${auto_refresh ? 'Disable' : 'Enable'} Autorefresh`);
         this.mitem_auto_refresh.connect('activate', () => {
             this.toggle_auto_refresh();
         });
 
         this._indicator.menu.addMenuItem(this.mitem_auto_refresh);
+
+        ebc.PnProxy.connectSignal("AutoRefreshChanged", this.update_auto_refresh_button.bind(this));
+
+        this.update_auto_refresh_button();
     }
 
     toggle_auto_refresh(){
-        log("Toggling atuo refresh");
         let auto_refresh = ebc.PnProxy.GetAutoRefreshSync()[0];
-        log(`toggle: auto refresh state: ${auto_refresh}`);
+        const force = auto_refresh != this._settings.get_boolean('auto-refresh');
 
         auto_refresh = !auto_refresh;
 
-        this.mitem_auto_refresh.label.set_text(`${auto_refresh ? 'Disable' : 'Enable'} Autorefresh`);
+        this._settings.set_boolean('auto-refresh', auto_refresh);
+        if (force) {
+            log(`auto_refresh was out of sync with settings`);
+            this._apply_auto_refresh(auto_refresh);
+        }
 
-        ebc.PnProxy.SetAutoRefreshSync(auto_refresh);
+        this._settings.set_boolean('auto-refresh', auto_refresh);
+    }
+
+    _apply_auto_refresh(value) {
+        log(`Setting auto refresh to ${value}`);
+        ebc.PnProxy.SetAutoRefreshSync(value);
+    }
+
+    update_auto_refresh_button(){
+        let auto_refresh = ebc.PnProxy.GetAutoRefreshSync()[0];
+        this.mitem_auto_refresh.label.set_text(_(`Auto Refresh ${auto_refresh ? 'Enabled' : 'Disabled'}`));
     }
 
     _add_dither_invert_button(){
         this.mitem_bw_dither_invert = new PopupMenu.PopupMenuItem(_('BW Invert On'));
         let bw_dither_invert = ebc.PnProxy.GetBwDitherInvertSync()[0];
 
-        this.mitem_bw_dither_invert.label.set_text(`BW Invert ${bw_dither_invert ? 'On' : 'Off'}`);
         this.mitem_bw_dither_invert.connect('activate', () => {
             this.toggle_bw_dither_invert();
         });
 
         this._indicator.menu.addMenuItem(this.mitem_bw_dither_invert);
+
+        ebc.PnProxy.connectSignal("BwDitherInvertChanged", this.update_bw_dither_invert_button.bind(this));
+
+        this.update_bw_dither_invert_button();
     }
 
     toggle_bw_dither_invert(){
         let bw_dither_invert = ebc.PnProxy.GetBwDitherInvertSync()[0];
-        log(`Toggling dither invert (is: ${bw_dither_invert})`);
+        const force = bw_dither_invert != this._settings.get_boolean('bw-dither-invert');
 
         bw_dither_invert = !bw_dither_invert;
 
-        this.mitem_bw_dither_invert.label.set_text(`BW Invert ${bw_dither_invert ? 'On' : 'Off'}`);
-        log(`new value: ${bw_dither_invert})`);
+        this._settings.set_boolean('bw-dither-invert', bw_dither_invert);
+        if (force) {
+            log(`bw_dither_invert was out of sync with settings`);
+            this._apply_bw_dither_invert(bw_dither_invert);
+        }
 
-        ebc.PnProxy.SetBwDitherInvertSync(bw_dither_invert);
+        this._settings.set_boolean('bw-dither-invert', bw_dither_invert);
     }
 
-    add_refresh_button(){
+    _apply_bw_dither_invert(value) {
+        log(`Setting bw dither invert to ${value}`);
+        ebc.PnProxy.SetBwDitherInvertSync(value);
+    }
+
+    update_bw_dither_invert_button() {
+        let bw_dither_invert = ebc.PnProxy.GetBwDitherInvertSync()[0];
+        this.mitem_bw_dither_invert.label.set_text(_(`BW Invert ${bw_dither_invert ? 'On' : 'Off'}`));
+    }
+
+    _add_refresh_button(){
         this._trigger_refresh_button = new TriggerRefreshButton();
         Main.panel.addToStatusArea(
-            "PN Trigger Global Refresh",
+            _("PN Trigger Global Refresh"),
             this._trigger_refresh_button,
             -1,
             'center'
         );
     }
 
-    add_performance_mode_button(){
-        this._performance_mode_button = new PerformanceModeButton(this.metadata);
+    _add_performance_mode_button(){
+        this._performance_mode_button = new PerformanceModeButton(this.metadata, this._settings);
         Main.panel.addToStatusArea(
-            "PN Switch Performance Modes",
+            _("PN Switch Performance Modes"),
             this._performance_mode_button,
             -1,
             'center'
         );
     }
 
-    add_warm_indicator_to_main_gnome_menu() {
+    _add_warm_indicator_to_main_gnome_menu() {
         // use the new quicksettings from GNOME 0.43
         // https://gjs.guide/extensions/topics/quick-settings.html#example-usage
         //
@@ -790,35 +837,80 @@ export default class PnHelperExtension extends Extension {
         // );
     }
 
-    add_travel_mode_toggle(){
-        this._indicator_travel_mode = new travel_mode.Indicator();
+    _add_travel_mode_toggle(){
+        this._indicator_travel_mode = new travel_mode.Indicator(this._settings);
         Main.panel.statusArea.quickSettings.addExternalIndicator(
             this._indicator_travel_mode
         );
     }
 
-    enable() {
-        log(`enabling ${this.metadata.name}`);
+    _add_no_off_screen_button(){
+        console.log("pnhelper: adding no off screen button");
+        this.mitem_no_off_screen = new PopupMenu.PopupMenuItem(_('Clear Screen on Suspend'));
 
-        const home = GLib.getenv("HOME");
-        // sometimes (on first boot), we do not want the overview to be shown.
-        // We want to directly go to the auto-started applications
-        const file = Gio.file_new_for_path(home + "/.config/pinenote/do_not_show_overview");
-        if (file.query_exists(null)){
-            log("disabling overview");
-            Main.sessionMode.hasOverview = false;
+        // Initialize
+        const no_off_screen = this._settings.get_boolean("no-off-screen");
+        if (no_off_screen != ebc.PnProxy.GetNoOffScreenSync()) {
+            this._apply_no_off_screen(no_off_screen);
         }
 
-        this.add_refresh_button();
-        this.add_performance_mode_button();
-        this.add_warm_indicator_to_main_gnome_menu();
-        this.add_travel_mode_toggle();
+        this.mitem_no_off_screen.connect('activate', () => {
+            this.toggle_no_off_screen();
+        });
+
+        this._indicator.menu.addMenuItem(this.mitem_no_off_screen);
+
+        ebc.PnProxy.connectSignal("NoOffScreenChanged", this.update_no_off_screen_button.bind(this));
+
+        this.update_no_off_screen_button();
+    }
+
+    toggle_no_off_screen(){
+        let no_off_screen = ebc.PnProxy.GetNoOffScreenSync()[0];
+        const force = no_off_screen != this._settings.get_boolean('no-off-screen');
+
+        no_off_screen = !no_off_screen;
+
+        this._settings.set_boolean('no-off-screen', no_off_screen);
+        if (force) {
+            log(`no_off_screen was out of sync with settings`);
+            this._apply_no_off_screen(no_off_screen);
+        }
+    }
+
+    _apply_no_off_screen(value) {
+        log(`Setting no off screen to ${value}`);
+        ebc.PnProxy.SetNoOffScreenSync(value);
+    }
+
+    update_no_off_screen_button() {
+        let no_off_screen = ebc.PnProxy.GetNoOffScreenSync()[0];
+        this.mitem_no_off_screen.label.set_text(_(`${no_off_screen ? 'Clear' : 'Keep'} screen on Suspend`));
+    }
+
+    enable() {
+        log(`enabling ${this.metadata.name}`);
+        this._settings = this.getSettings();
+
+        this._add_refresh_button();
+        this._add_performance_mode_button();
+        this._add_warm_indicator_to_main_gnome_menu();
+        this._add_travel_mode_toggle();
+
+		// sometimes (on first boot), we do not want the overview to be shown.
+		// We want to directly go to the auto-started applications
+		const home = GLib.getenv("HOME");
+		const file = Gio.file_new_for_path(home + "/.config/pinenote/do_not_show_overview");
+		if (file.query_exists(null)){
+			log("disabling overview");
+			Main.sessionMode.hasOverview = false;
+		}
 
         // ////////////////////////////////////////////////////////////////////
         this._topBox = new St.BoxLayout({ });
 
         // Button 1
-        let indicatorName = `${this.metadata.name} Indicator`;
+        let indicatorName = _(`${this.metadata.name} Indicator`);
 
         // Create a panel button
         this._indicator = new PanelMenu.Button(0.0, indicatorName, false);
@@ -842,7 +934,7 @@ export default class PnHelperExtension extends Extension {
         // Add the label
         // this._indicator.add_child(this.panel_label);
         this.dbus_proxy = ebc.ebc_subscribe_to_waveformchanged(
-            this.onWaveformChanged,
+            this.onWaveformChanged.bind(this),
             this.panel_label
         );
 
@@ -867,17 +959,48 @@ export default class PnHelperExtension extends Extension {
         });
         this._indicator.menu.addMenuItem(item);
 
+        this._settings.connect('changed::auto-refresh', (settings, key) => {
+            this._apply_auto_refresh(this._settings.get_boolean(key));
+        });
+        this._settings.connect('changed::bw-dither-invert', (settings, key) => {
+            this._apply_bw_dither_invert(this._settings.get_boolean(key));
+        });
+        this._settings.connect('changed::bw-mode', (settings, key) => {
+            this._change_bw_mode(this._settings.get_uint(key));
+        });
+        this._settings.connect('changed::no-off-screen', (settings, key) => {
+            this._apply_no_off_screen(this._settings.get_boolean(key));
+        });
+
         this._add_bw_buttons();
         this._add_dither_invert_button();
         this._add_auto_refresh_button();
         // this._add_waveform_buttons();
         // this._add_testing_button();
         this._add_usb_mtp_gadget_buttons();
+        this._add_no_off_screen_button();
 
-        // activate default grayscale mode
-        this._change_bw_mode(0);
+        // activate defaults
+        const auto_refresh = this._settings.get_uint("auto-refresh");
+        if (auto_refresh != ebc.PnProxy.GetAutoRefreshSync()[0]){
+            this._apply_auto_refresh(auto_refresh);
+        }
+        const bw_dither_invert = this._settings.get_uint("bw-dither-invert");
+        if (bw_dither_invert != ebc.PnProxy.GetBwDitherInvertSync()[0]){
+            this._apply_bw_dither_invert(bw_dither_invert);
+        }
+        const bw_mode = this._settings.get_uint("bw-mode");
+        if (bw_mode != ebc.PnProxy.GetBwModeSync()[0]){
+            this._change_bw_mode(bw_mode);
+        }
+        const no_off_screen = this._settings.get_uint("no-off-screen");
+        if (no_off_screen != ebc.PnProxy.GetNoOffScreenSync()[0]){
+            this._apply_no_off_screen(no_off_screen);
+        }
 
         // this._btpen = new btpen.Indicator_ng();
+        this.update_panel_label();
+        this.update_popup_bw_mode();
     }
 
     _get_content(sysfs_file){
@@ -912,6 +1035,8 @@ export default class PnHelperExtension extends Extension {
         this._indicator_travel_mode.quickSettingsItems.forEach(item => item.destroy());
         this._indicator_travel_mode.destroy();
         this._indicator_travel_mode = null;
+
+        this._settings = null;
     }
 
     rotate_screen(){

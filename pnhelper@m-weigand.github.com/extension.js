@@ -280,8 +280,10 @@ var PerformanceModeButton = GObject.registerClass(
         // noop in the driver currently, but maybe there are listeners for the associated signal
         ebc.PnProxy.RequestQualityOrPerformanceModeSync(quality_mode ? 1 : 0);
 
+		// store the current value here
         const no_off_screen = this._settings.get_boolean('no-off-screen');
-        ebc.PnProxy.SetNoOffScreenSync(no_off_screen);
+		// while switching modes, we do not want the offscreen to be shown
+        ebc.PnProxy.SetNoOffScreenSync(1);
 
         try {
             GLib.spawn_async(
@@ -297,6 +299,8 @@ var PerformanceModeButton = GObject.registerClass(
         const removeId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
             log('This callback will be invoked once after 1 seconds');
             ebc.ebc_trigger_global_refresh();
+			// we need to restore the nooffscreen-settings after the mode set
+			ebc.PnProxy.SetNoOffScreenSync(no_off_screen);
 
             // GLib.Source.remove(timeoutId);
 

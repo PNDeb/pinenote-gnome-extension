@@ -249,7 +249,6 @@ var PerformanceModeButton = GObject.registerClass(
 
         quality_mode = !quality_mode;
 
-        this._settings.set_boolean('quality-mode', quality_mode);
         if (force) {
             log(`quality_mode was out of sync with settings`);
             this._apply_quality_mode(quality_mode);

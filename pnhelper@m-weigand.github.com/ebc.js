@@ -56,6 +56,12 @@ const PinenoteDbusInterface = `
     </method>
     <method name="TriggerGlobalRefresh">
     </method>
+	<method name="SetGlobreConvertBefore">
+	<arg name="state" type="y" direction="in"/>
+	</method>
+	<method name="GetGlobreConvertBefore">
+	<arg name="globre_convert_before" type="y" direction="out"/>
+	</method>
     <signal name="AutoRefreshChanged">
     </signal>
     <signal name="BwModeChanged">
@@ -68,6 +74,8 @@ const PinenoteDbusInterface = `
     </signal>
     <signal name="NoOffScreenChanged">
     </signal>
+	<signal name="GlobreConvertBeforeChanged">
+	</signal>
     <signal name="RequestedQualityOrPerformance">
       <arg name="requested_mode" type="y"/>
     </signal>

@@ -26,7 +26,7 @@ const PinenoteMiscDbusInterface = `
 
 const PinenoteMiscDbusProxy = Gio.DBusProxy.makeProxyWrapper(PinenoteMiscDbusInterface);
 
-var PnMiscProxy = new PinenoteMiscDbusProxy(
+export var PnMiscProxy = new PinenoteMiscDbusProxy(
     Gio.DBus.system,
     "org.pinenote.misc",
     "/misc",
@@ -107,7 +107,7 @@ class TravelModeToggle extends QuickSettings.QuickToggle {
         const force = state != this._settings.get_boolean('travel-mode');
 
         state = !state;
-        log(`TravelModel: Toggle ${state ? "On" : "Off"}`);
+        log(`TraveMode: Toggle ${state ? "On" : "Off"}`);
 
         this._settings.set_boolean('travel-mode', state);
         if (force) {
@@ -119,7 +119,6 @@ class TravelModeToggle extends QuickSettings.QuickToggle {
     }
 
     _apply_travel_mode(value){
-        //this.set(value);
         if (value){
             misc_enable_travel_mode();
         } else {

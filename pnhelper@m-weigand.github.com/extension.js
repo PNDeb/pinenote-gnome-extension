@@ -980,11 +980,11 @@ export default class PnHelperExtension extends Extension {
         this._add_no_off_screen_button();
 
         // activate defaults
-        const auto_refresh = this._settings.get_uint("auto-refresh");
+        const auto_refresh = this._settings.get_boolean("auto-refresh");
         if (auto_refresh != ebc.PnProxy.GetAutoRefreshSync()[0]){
             this._apply_auto_refresh(auto_refresh);
         }
-        const bw_dither_invert = this._settings.get_uint("bw-dither-invert");
+        const bw_dither_invert = this._settings.get_boolean("bw-dither-invert");
         if (bw_dither_invert != ebc.PnProxy.GetBwDitherInvertSync()[0]){
             this._apply_bw_dither_invert(bw_dither_invert);
         }
@@ -992,7 +992,7 @@ export default class PnHelperExtension extends Extension {
         if (bw_mode != ebc.PnProxy.GetBwModeSync()[0]){
             this._change_bw_mode(bw_mode);
         }
-        const no_off_screen = this._settings.get_uint("no-off-screen");
+        const no_off_screen = this._settings.get_boolean("no-off-screen");
         if (no_off_screen != ebc.PnProxy.GetNoOffScreenSync()[0]){
             this._apply_no_off_screen(no_off_screen);
         }

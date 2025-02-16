@@ -990,7 +990,29 @@ export default class PnHelperExtension extends Extension {
         }
         const bw_mode = this._settings.get_uint("bw-mode");
         if (bw_mode != ebc.PnProxy.GetBwModeSync()[0]){
+			let backup_conv = -1;
+			if (bw_mode != 0){
+				// if we use anything other than the gc16 waveform,
+				// make sure the buffer is converted
+
+				// backup
+				backup_conv = ebc.PnProxy.GetGlobreConvertBeforeSync()[0];
+				ebc.PnProxy.SetGlobreConvertBeforeSync(1);
+			}
             this._change_bw_mode(bw_mode);
+			if (bw_mode != 0){
+				// reset the globre_convert_before parameter to the backup
+				// note the global refresh will only be triggered after 500 ms,
+				// so we wait 1500 to be sure
+				log(`backup_conv value: ${backup_conv}`);
+				setTimeout(
+					() => {
+						log(`pn-extension: delayed reset to backup value: ${backup_conv}`);
+						ebc.PnProxy.SetGlobreConvertBeforeSync(backup_conv);
+					},
+					1500
+				);
+			}
         }
         const no_off_screen = this._settings.get_boolean("no-off-screen");
         if (no_off_screen != ebc.PnProxy.GetNoOffScreenSync()[0]){
@@ -1024,6 +1046,8 @@ export default class PnHelperExtension extends Extension {
     // they are disabled. This is required for approval during review!
     disable() {
         log(`disabling ${this.metadata.name}`);
+
+        ebc.PnProxy.SetGlobreConvertBeforeSync(0);
 
         ebc.ebc_unsubscribe(this.dbus_proxy)
 

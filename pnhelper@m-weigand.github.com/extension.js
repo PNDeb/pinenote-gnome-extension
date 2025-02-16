@@ -996,6 +996,14 @@ export default class PnHelperExtension extends Extension {
         if (no_off_screen != ebc.PnProxy.GetNoOffScreenSync()[0]){
             this._apply_no_off_screen(no_off_screen);
         }
+        const travel_mode_setting = this._settings.get_boolean("travel-mode");
+        if (travel_mode_setting != travel_mode.PnMiscProxy.GetTravelModeSync()[0]){
+            if (travel_mode_setting){
+                travel_mode.misc_enable_travel_mode();
+            } else {
+                travel_mode.misc_disable_travel_mode();
+            }
+        }
 
         // this._btpen = new btpen.Indicator_ng();
         this.update_panel_label();

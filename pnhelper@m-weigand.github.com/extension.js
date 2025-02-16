@@ -280,9 +280,9 @@ var PerformanceModeButton = GObject.registerClass(
         // noop in the driver currently, but maybe there are listeners for the associated signal
         ebc.PnProxy.RequestQualityOrPerformanceModeSync(quality_mode ? 1 : 0);
 
-		// store the current value here
+        // store the current value here
         const no_off_screen = this._settings.get_boolean('no-off-screen');
-		// while switching modes, we do not want the offscreen to be shown
+        // while switching modes, we do not want the offscreen to be shown
         ebc.PnProxy.SetNoOffScreenSync(1);
 
         try {
@@ -299,8 +299,8 @@ var PerformanceModeButton = GObject.registerClass(
         const removeId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
             log('This callback will be invoked once after 1 seconds');
             ebc.ebc_trigger_global_refresh();
-			// we need to restore the nooffscreen-settings after the mode set
-			ebc.PnProxy.SetNoOffScreenSync(no_off_screen);
+            // we need to restore the nooffscreen-settings after the mode set
+            ebc.PnProxy.SetNoOffScreenSync(no_off_screen);
 
             // GLib.Source.remove(timeoutId);
 
@@ -897,14 +897,14 @@ export default class PnHelperExtension extends Extension {
         this._add_warm_indicator_to_main_gnome_menu();
         this._add_travel_mode_toggle();
 
-		// sometimes (on first boot), we do not want the overview to be shown.
-		// We want to directly go to the auto-started applications
-		const home = GLib.getenv("HOME");
-		const file = Gio.file_new_for_path(home + "/.config/pinenote/do_not_show_overview");
-		if (file.query_exists(null)){
-			log("disabling overview");
-			Main.sessionMode.hasOverview = false;
-		}
+        // sometimes (on first boot), we do not want the overview to be shown.
+        // We want to directly go to the auto-started applications
+        const home = GLib.getenv("HOME");
+        const file = Gio.file_new_for_path(home + "/.config/pinenote/do_not_show_overview");
+        if (file.query_exists(null)){
+            log("disabling overview");
+            Main.sessionMode.hasOverview = false;
+        }
 
         // ////////////////////////////////////////////////////////////////////
         this._topBox = new St.BoxLayout({ });

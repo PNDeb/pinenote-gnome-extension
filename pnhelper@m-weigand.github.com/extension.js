@@ -926,7 +926,7 @@ export default class PnHelperExtension extends Extension {
         this._topBox.add_child(icon);
 
         this.panel_label = new St.Label({
-            text: "DADA",
+            text: "NA",
             y_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
         });

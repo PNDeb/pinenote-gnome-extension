@@ -879,7 +879,6 @@ export default class PnHelperExtension extends Extension {
     }
 
     _apply_no_off_screen(value) {
-        log(`Setting no off screen to ${value}`);
         ebc.PnProxy.SetNoOffScreenSync(value);
     }
 

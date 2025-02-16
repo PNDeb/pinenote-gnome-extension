@@ -57,10 +57,10 @@ const PinenoteDbusInterface = `
     <method name="TriggerGlobalRefresh">
     </method>
 	<method name="SetGlobreConvertBefore">
-	<arg name="state" type="y" direction="in"/>
+	<arg name="state" type="b" direction="in"/>
 	</method>
 	<method name="GetGlobreConvertBefore">
-	<arg name="globre_convert_before" type="y" direction="out"/>
+	<arg name="globre_convert_before" type="b" direction="out"/>
 	</method>
     <signal name="AutoRefreshChanged">
     </signal>

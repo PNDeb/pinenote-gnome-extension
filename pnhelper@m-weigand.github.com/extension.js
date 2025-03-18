@@ -416,11 +416,10 @@ var QuickSettingsWarmSlider = GObject.registerClass(
 
             // Create the slider and associate it with the indicator, being
             // sure to destroy it along with the indicator
-            this.quickSettingsItems.push(new WarmSlider());
+            let warm_slider = new WarmSlider();
+            this.quickSettingsItems.push(warm_slider);
 
-            this.connect('destroy', () => {
-                this.quickSettingsItems.forEach(item => item.destroy());
-            });
+            this.connect('destroy', () => warm_slider.destroy());
 
             // Add the indicator to the panel
             // TODO

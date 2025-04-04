@@ -416,11 +416,10 @@ var QuickSettingsWarmSlider = GObject.registerClass(
 
             // Create the slider and associate it with the indicator, being
             // sure to destroy it along with the indicator
-            this.quickSettingsItems.push(new WarmSlider());
+            let warm_slider = new WarmSlider();
+            this.quickSettingsItems.push(warm_slider);
 
-            this.connect('destroy', () => {
-                this.quickSettingsItems.forEach(item => item.destroy());
-            });
+            this.connect('destroy', () => warm_slider.destroy());
 
             // Add the indicator to the panel
             // TODO
@@ -905,6 +904,17 @@ export default class PnHelperExtension extends Extension {
             Main.sessionMode.hasOverview = false;
         }
 
+        this.wm = global.window_manager;
+        let [found, signal_id, detail] = GObject.signal_parse_name('confirm-display-change', this.wm, true);
+        log(`found=${found} signal_id=${signal_id} detail={detail}`);
+        if (found) {
+            this._cdc_signal_id = signal_id;
+            this._cdc_detail = detail;
+            let num_blocked = GObject.signal_handlers_block_matched(this.wm, GObject.SignalMatchType.ID, signal_id, detail, null, null, null);
+            log(`blocked ${num_blocked} signal handlers`);
+        }
+        this._cdc_handler_id = this.wm.connect('confirm-display-change', () => this.wm.complete_display_change(true));
+
         // ////////////////////////////////////////////////////////////////////
         this._topBox = new St.BoxLayout({ });
 
@@ -1066,6 +1076,10 @@ export default class PnHelperExtension extends Extension {
         this._indicator_travel_mode.quickSettingsItems.forEach(item => item.destroy());
         this._indicator_travel_mode.destroy();
         this._indicator_travel_mode = null;
+
+        this.wm.disconnect('confirm-display-change', this._cdc_handler_id);
+        let num_unblocked = GObject.signal_handlers_unblock_matched(this.wm, GObject.SignalMatchType.ID, this._cdc_signal_id, this._cdc_detail, null, null, null);
+        log(`unblocked ${num_unblocked} signal handlers`);
 
         this._settings = null;
     }

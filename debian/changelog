@@ -1,3 +1,15 @@
+pinenote-gnome-extension (1.8-dev) UNRELEASED; urgency=medium
+
+  * Suppress confirmation dialog by blocking the corresponding signal - change
+    contributed by user hrdl. Thanks for that!
+  * The state of the various settings should now persist between reboots. Old
+	settings are applied to the system using the dbus service. Thanks Peter
+    Nerlich for this huge patch set!
+  * Much better usage of dbus routines to set ebc module parameters
+  * Gnome 48 support
+
+ -- Maximilian Weigand <mweigand@mweigand.net>  Fri, 04 Apr 2025 18:38:59 +0200
+
 pinenote-gnome-extension (1.7) trixie; urgency=medium
 
   * A a travel-mode quicksetting toggle
